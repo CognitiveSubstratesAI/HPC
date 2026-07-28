@@ -11,10 +11,10 @@ Run multi-rank:
 """
 
 using HPC, MORK
-import MPI
+using MPI: MPI
 
 # ── Initialise MPI via HPC (sets _MPI_COMM, rank, nranks) ─────────────────────
-enable_multi_space!(true; use_mpi=true)
+enable_multi_space!(true; use_mpi = true)
 
 rank   = mpi_rank()
 nranks = mpi_nranks()
@@ -59,10 +59,11 @@ println("[$rank/$nranks] Topology 2 ✓  shared space: $total atoms across $nran
 
 # Query common space for all shared-fact atoms
 # sharded_query works for both ShardedSpace and plain Space (single-node)
-results = common isa ShardedSpace ?
-          sharded_query(common, "(shared-fact \$r \$i)") :
-          filter(l -> startswith(l, "(shared-fact "),
-                 split(space_dump_all_sexpr(common), "\n"; keepempty=false))
+results = if common isa ShardedSpace
+    sharded_query(common, "(shared-fact \$r \$i)")
+else
+    filter(l -> startswith(l, "(shared-fact "), split(space_dump_all_sexpr(common), "\n"; keepempty = false))
+end
 
 @assert length(results) == expected "Topology 2 query: got=$(length(results)) expected=$expected"
 println("[$rank/$nranks] Topology 2 query ✓  found $(length(results)) atoms from all shards")
@@ -73,12 +74,12 @@ test_space = new_space()
 space_add_all_sexpr!(test_space, "(edge 0 1) (edge 1 2) (edge 2 3) (edge 3 4)")
 
 # Dense pattern — should activate (4/4 = 1.0 ≥ 0.3)
-result = space_traverse!(test_space, "(edge \$x \$y)"; threshold=0.3)
-@assert result.activated  "traversal should activate"
+result = space_traverse!(test_space, "(edge \$x \$y)"; threshold = 0.3)
+@assert result.activated "traversal should activate"
 @assert result.count == 4
 
 # Sparse — should NOT activate
-sparse = space_traverse!(test_space, "(nonexistent \$x)"; threshold=0.3)
+sparse = space_traverse!(test_space, "(nonexistent \$x)"; threshold = 0.3)
 @assert !sparse.activated
 
 println("[$rank/$nranks] Topology 3 ✓  activated=$(result.activated) count=$(result.count)")

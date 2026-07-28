@@ -13,11 +13,11 @@ Intentionally minimal — not a full MeTTa parser.
 abstract type HPCNode end
 
 struct HPCAtom <: HPCNode
-    name :: String
+    name::String
 end
 
 struct HPCList <: HPCNode
-    items :: Vector{HPCNode}
+    items::Vector{HPCNode}
 end
 
 # ── Tokeniser ─────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ Parse `src` into a sequence of flat HPCNodes.
 Handles: symbols, (list ...) expressions.
 Sufficient for MM2 commands like (new-space name role).
 """
-function hpc_parse(src::AbstractString) :: Vector{HPCNode}
+function hpc_parse(src::AbstractString)::Vector{HPCNode}
     tokens = _tokenise(src)
     nodes  = HPCNode[]
     pos    = Ref(1)
@@ -39,7 +39,7 @@ function hpc_parse(src::AbstractString) :: Vector{HPCNode}
     nodes
 end
 
-function _tokenise(src::AbstractString) :: Vector{String}
+function _tokenise(src::AbstractString)::Vector{String}
     tokens = String[]
     i = firstindex(src)
     while i <= lastindex(src)
@@ -47,9 +47,11 @@ function _tokenise(src::AbstractString) :: Vector{String}
         if c in (' ', '\t', '\n', '\r')
             i = nextind(src, i)
         elseif c == '('
-            push!(tokens, "("); i = nextind(src, i)
+            push!(tokens, "(");
+            i = nextind(src, i)
         elseif c == ')'
-            push!(tokens, ")"); i = nextind(src, i)
+            push!(tokens, ")");
+            i = nextind(src, i)
         elseif c == ';'   # line comment
             while i <= lastindex(src) && src[i] != '\n'
                 i = nextind(src, i)
@@ -66,7 +68,7 @@ function _tokenise(src::AbstractString) :: Vector{String}
     tokens
 end
 
-function _parse_token(tokens::Vector{String}, pos::Ref{Int}) :: HPCNode
+function _parse_token(tokens::Vector{String}, pos::Ref{Int})::HPCNode
     tok = tokens[pos[]]
     pos[] += 1
     if tok == "("
@@ -93,7 +95,7 @@ Less precise than MorkSupercompiler's dynamic_count (binary prefix matching)
 but sufficient for the traversal probability gate.
 Returns 1 for bare atoms/vars, typemax(Int) for unparseable patterns.
 """
-function hpc_count_pattern(space::Space, pattern_str::AbstractString) :: Int
+function hpc_count_pattern(space::Space, pattern_str::AbstractString)::Int
     stripped = strip(pattern_str)
     # Bare atom or variable
     !startswith(stripped, "(") && return 1
@@ -104,20 +106,23 @@ function hpc_count_pattern(space::Space, pattern_str::AbstractString) :: Int
     functor = m.captures[1]
     startswith(functor, "\$") && return typemax(Int)  # variable head
 
-    dump = space_dump_all_sexpr(space)
+    dump   = space_dump_all_sexpr(space)
     prefix = "($functor "
     exact  = "($functor)"
-    count(line -> startswith(line, prefix) || line == exact,
-          split(dump, "\n"; keepempty=false))
+    count(line -> startswith(line, prefix) || line == exact, split(dump, "\n"; keepempty = false))
 end
 
 # ── Serialiser ────────────────────────────────────────────────────────────────
 
-"""hpc_sprint_sexpr(node) → String — serialise an HPCNode back to s-expression."""
+"""
+hpc_sprint_sexpr(node) → String — serialise an HPCNode back to s-expression.
+"""
 hpc_sprint_sexpr(n::HPCAtom) = n.name
 hpc_sprint_sexpr(n::HPCList) = "(" * join(hpc_sprint_sexpr.(n.items), " ") * ")"
 
-"""hpc_sprint_program(nodes) → String — serialise a list of HPCNodes."""
+"""
+hpc_sprint_program(nodes) → String — serialise a list of HPCNodes.
+"""
 hpc_sprint_program(nodes::Vector{HPCNode}) = join(hpc_sprint_sexpr.(nodes), "\n")
 
 export HPCNode, HPCAtom, HPCList, hpc_parse, hpc_count_pattern

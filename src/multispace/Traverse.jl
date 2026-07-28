@@ -19,10 +19,10 @@ const TRAVERSAL_THRESHOLD = 0.3
 """
     TraversalResult
 
-  count      — number of matches found
-  p_traverse — traversal probability
-  activated  — whether the space was traversed (p ≥ threshold)
-  rank       — traversal depth (0 = seed, 1 = first hop)
+count      — number of matches found
+p_traverse — traversal probability
+activated  — whether the space was traversed (p ≥ threshold)
+rank       — traversal depth (0 = seed, 1 = first hop)
 """
 struct TraversalResult
     count      :: Int
@@ -43,11 +43,13 @@ via non-blocking MPI send. Each peer independently decides to activate.
 depth=0: local only (no MPI propagation — used when processing incoming peer queries).
 dest_peer: LOCAL_PEER → broadcast to all peers; specific rank → point-to-point.
 """
-function space_traverse!(space     :: Space,
-                          seed_str  :: AbstractString,
-                          depth     :: Int     = 1;
-                          threshold :: Float64 = TRAVERSAL_THRESHOLD,
-                          dest_peer :: Int32   = LOCAL_PEER) :: TraversalResult
+function space_traverse!(
+    space::Space,
+    seed_str::AbstractString,
+    depth::Int         = 1;
+    threshold::Float64 = TRAVERSAL_THRESHOLD,
+    dest_peer::Int32   = LOCAL_PEER,
+)::TraversalResult
     total   = Float64(max(1, space_val_count(space)))
     n_raw   = hpc_count_pattern(space, seed_str)
     n_match = n_raw == typemax(Int) ? 0 : n_raw
@@ -75,20 +77,19 @@ Poll and process all pending MPI traverse requests from peer nodes.
 Returns number of requests handled. Non-blocking — zero overhead when no messages.
 
 Call from the peer main loop:
-    while true
-        space_metta_calculus!(s, 100)
-        process_mpi_traversals!(s)
-    end
+while true
+space_metta_calculus!(s, 100)
+process_mpi_traversals!(s)
+end
 """
-function process_mpi_traversals!(space     :: Space;
-                                  threshold :: Float64 = TRAVERSAL_THRESHOLD) :: Int
+function process_mpi_traversals!(space::Space; threshold::Float64 = TRAVERSAL_THRESHOLD)::Int
     mpi_active() || return 0
     count = 0
     while true
         msg = mpi_poll_traverse!()
         msg === nothing && break
         _, query_bytes = msg
-        space_traverse!(space, String(query_bytes), 0; threshold=threshold)
+        space_traverse!(space, String(query_bytes), 0; threshold = threshold)
         count += 1
     end
     count

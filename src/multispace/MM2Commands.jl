@@ -21,15 +21,14 @@ When ENABLE_MULTI_SPACE[] = false, this module is a no-op.
 
 # ── Command detection ─────────────────────────────────────────────────────────
 
-const _MULTISPACE_COMMANDS = Set(["new-space", "shared-space",
-                                   "save-space", "load-space", "list-spaces"])
+const _MULTISPACE_COMMANDS = Set(["new-space", "shared-space", "save-space", "load-space", "list-spaces"])
 
 """
     is_multispace_command(node::HPCNode) → Bool
 
 True if this atom is a recognised multi-space MM2 command.
 """
-function is_multispace_command(node::HPCNode) :: Bool
+function is_multispace_command(node::HPCNode)::Bool
     node isa HPCList || return false
     items = (node::HPCList).items
     isempty(items) && return false
@@ -45,7 +44,7 @@ end
 Execute one multi-space MM2 command against `reg`.
 Returns true if the command was handled, false if unrecognised.
 """
-function execute_multispace_command!(reg::SpaceRegistry, node::HPCNode) :: Bool
+function execute_multispace_command!(reg::SpaceRegistry, node::HPCNode)::Bool
     node isa HPCList || return false
     items = (node::HPCList).items
     isempty(items) && return false
@@ -98,9 +97,8 @@ the remaining program text with those commands removed.
 Called by `execute!` / `run!` / `plan!` when ENABLE_MULTI_SPACE[] = true.
 Zero overhead when ENABLE_MULTI_SPACE[] = false (not called at all).
 """
-function process_multispace_commands!(reg::SpaceRegistry,
-                                       program::AbstractString) :: String
-    nodes    = hpc_parse(program)
+function process_multispace_commands!(reg::SpaceRegistry, program::AbstractString)::String
+    nodes = hpc_parse(program)
     remaining = HPCNode[]
 
     for node in nodes
@@ -116,14 +114,14 @@ end
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-function _extract_string(node::HPCNode) :: String
+function _extract_string(node::HPCNode)::String
     node isa HPCAtom && return (node::HPCAtom).name
     # Handle quoted strings stored as atoms with quotes stripped
     node isa HPCList && return hpc_sprint_sexpr(node)
     error("expected string atom, got $(hpc_sprint_sexpr(node))")
 end
 
-function _extract_role(node::HPCNode) :: Symbol
+function _extract_role(node::HPCNode)::Symbol
     node isa HPCAtom || error("expected a role symbol (e.g. common, genomics, robotics, games)")
     name = (node::HPCAtom).name
     # Strip optional leading colon (":app" → "app", ":common" → "common")
@@ -137,7 +135,7 @@ function _print_space_list(reg::SpaceRegistry)
     entries = list_spaces(reg)
     if isempty(entries)
         println("MultiSpace: no spaces registered")
-        return
+        return nothing
     end
     println("MultiSpace registry:")
     for e in entries

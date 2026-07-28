@@ -56,15 +56,15 @@ end
     reg = SpaceRegistry()
     # Cognitive algorithms (PLN, ECAN, MOSES) are atoms IN :common, not separate spaces.
     # Domain data lives in domain-named spaces.
-    new_space!(reg, "shared-kb",      :common)       # PLN/ECAN rules + ontology live here
-    new_space!(reg, "genomics-data",  :genomics)     # domain: bioinformatics facts
-    new_space!(reg, "robotics-data",  :robotics)     # domain: sensor/actuator data
-    new_space!(reg, "games-data",     :games)        # domain: game states/moves
+    new_space!(reg, "shared-kb", :common)       # PLN/ECAN rules + ontology live here
+    new_space!(reg, "genomics-data", :genomics)     # domain: bioinformatics facts
+    new_space!(reg, "robotics-data", :robotics)     # domain: sensor/actuator data
+    new_space!(reg, "games-data", :games)        # domain: game states/moves
     new_space!(reg, "drug-discovery", :drug_discovery)
-    @test reg.roles[NamedSpaceID("shared-kb")]      == :common
-    @test reg.roles[NamedSpaceID("genomics-data")]  == :genomics
-    @test reg.roles[NamedSpaceID("robotics-data")]  == :robotics
-    @test reg.roles[NamedSpaceID("games-data")]     == :games
+    @test reg.roles[NamedSpaceID("shared-kb")] == :common
+    @test reg.roles[NamedSpaceID("genomics-data")] == :genomics
+    @test reg.roles[NamedSpaceID("robotics-data")] == :robotics
+    @test reg.roles[NamedSpaceID("games-data")] == :games
     @test common_space(reg) isa Space
 end
 
@@ -82,8 +82,7 @@ end
 
 @testset "MM2 commands — new-space intercepted" begin
     reg = SpaceRegistry()
-    remaining = process_multispace_commands!(reg,
-        "(new-space my-knowledge common)\n(exec 0 (, (a \$x)) (, (b \$x)))")
+    remaining = process_multispace_commands!(reg, "(new-space my-knowledge common)\n(exec 0 (, (a \$x)) (, (b \$x)))")
     @test haskey(reg.spaces, NamedSpaceID("my-knowledge"))
     @test reg.roles[NamedSpaceID("my-knowledge")] == :common
     # exec atom remains
@@ -94,8 +93,7 @@ end
 
 @testset "MM2 commands — multiple commands stripped" begin
     reg = SpaceRegistry()
-    remaining = process_multispace_commands!(reg,
-        "(new-space app1 app)\n(new-space shared common)\n(edge 0 1)")
+    remaining = process_multispace_commands!(reg, "(new-space app1 app)\n(new-space shared common)\n(edge 0 1)")
     @test length(reg.spaces) == 2
     @test occursin("edge", remaining)
     @test !occursin("new-space", remaining)
@@ -118,9 +116,8 @@ end
     space_add_all_sexpr!(s, "(edge 0 1)")
 
     # Process MM2 commands then run exec rule
-    prog = "(new-space test-domain app)\n" *
-           raw"(exec 0 (, (edge $x $y)) (, (path $x $y)))"
-    reg      = get_registry()
+    prog = "(new-space test-domain app)\n" * raw"(exec 0 (, (edge $x $y)) (, (path $x $y)))"
+    reg = get_registry()
     remaining = process_multispace_commands!(reg, prog)
     space_add_all_sexpr!(s, remaining)
     space_metta_calculus!(s, typemax(Int))
@@ -160,11 +157,11 @@ end
     space_add_all_sexpr!(s, join(["(edge $i $(i+1))" for i in 0:9], " "))
     # 10 edge atoms, pattern matches all → p = 1.0
     # With very high threshold, should not activate
-    result = space_traverse!(s, "(edge \$x \$y)"; threshold=0.99)
+    result = space_traverse!(s, "(edge \$x \$y)"; threshold = 0.99)
     # p = 10/10 = 1.0 ≥ 0.99 — still activates
     @test result.activated == true
     # With threshold > 1.0, never activates
-    result2 = space_traverse!(s, "(edge \$x \$y)"; threshold=1.01)
+    result2 = space_traverse!(s, "(edge \$x \$y)"; threshold = 1.01)
     @test result2.activated == false
 end
 
@@ -188,7 +185,7 @@ end
     reg2 = SpaceRegistry()
     s2   = load_space!(reg2, "persist-test", path)
     @test space_val_count(s2) == 2
-    rm(path; force=true)
+    rm(path; force = true)
 end
 
 @testset "load_space! — creates space if missing" begin
@@ -199,7 +196,7 @@ end
     save_space!(reg, "tmp", path)
 
     reg2 = SpaceRegistry()   # empty registry
-    s2   = load_space!(reg2, "new-name", path; create_if_missing=true)
+    s2   = load_space!(reg2, "new-name", path; create_if_missing = true)
     @test space_val_count(s2) == 1
-    rm(path; force=true)
+    rm(path; force = true)
 end

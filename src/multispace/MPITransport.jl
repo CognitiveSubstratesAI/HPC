@@ -21,7 +21,7 @@ Scale:
   mpirun -n 9216 julia script.jl   → Frontier-scale, same binary
 """
 
-import MPI
+using MPI: MPI
 
 const TRAVERSE_TAG = Int32(42)
 const RESULT_TAG   = Int32(43)
@@ -45,7 +45,7 @@ function mpi_init!()
     MPI.Init()
     _MPI_COMM[]        = MPI.COMM_WORLD
     _MPI_INITIALIZED[] = true
-    reg = _REGISTRY[]
+    reg                = _REGISTRY[]
     if reg !== nothing
         reg.rank   = Int32(MPI.Comm_rank(_MPI_COMM[]))
         reg.nranks = Int32(MPI.Comm_size(_MPI_COMM[]))
@@ -73,14 +73,14 @@ end
 
 Return this peer's MPI rank. Returns LOCAL_PEER (0) when MPI not initialized.
 """
-mpi_rank()   :: Int32 = _MPI_INITIALIZED[] ? Int32(MPI.Comm_rank(_MPI_COMM[])) : LOCAL_PEER
+mpi_rank()::Int32 = _MPI_INITIALIZED[] ? Int32(MPI.Comm_rank(_MPI_COMM[])) : LOCAL_PEER
 
 """
     mpi_nranks() → Int32
 
 Return total number of peers. Returns 1 when MPI not initialized.
 """
-mpi_nranks() :: Int32 = _MPI_INITIALIZED[] ? Int32(MPI.Comm_size(_MPI_COMM[])) : Int32(1)
+mpi_nranks()::Int32 = _MPI_INITIALIZED[] ? Int32(MPI.Comm_size(_MPI_COMM[])) : Int32(1)
 
 """
     mpi_active() → Bool
@@ -88,7 +88,7 @@ mpi_nranks() :: Int32 = _MPI_INITIALIZED[] ? Int32(MPI.Comm_size(_MPI_COMM[])) :
 True when MPI is initialized and more than one peer exists.
 Single-node single-rank runs return false — no MPI overhead.
 """
-mpi_active() :: Bool = _MPI_INITIALIZED[] && mpi_nranks() > Int32(1)
+mpi_active()::Bool = _MPI_INITIALIZED[] && mpi_nranks() > Int32(1)
 
 # ── Point-to-point messaging ──────────────────────────────────────────────────
 
@@ -99,9 +99,9 @@ Non-blocking send of a traverse query to `dest_rank`.
 `query_bytes` = UTF-8 encoded seed pattern s-expression.
 Returns immediately — does not wait for dest to receive.
 """
-function mpi_send_traverse!(dest_rank::Int32, query_bytes::Vector{UInt8}) :: Nothing
+function mpi_send_traverse!(dest_rank::Int32, query_bytes::Vector{UInt8})::Nothing
     _MPI_INITIALIZED[] || return nothing
-    MPI.Isend(query_bytes, _MPI_COMM[]; dest=Int(dest_rank), tag=Int(TRAVERSE_TAG))
+    MPI.Isend(query_bytes, _MPI_COMM[]; dest = Int(dest_rank), tag = Int(TRAVERSE_TAG))
     nothing
 end
 
@@ -112,14 +112,14 @@ Non-blocking poll for incoming traverse queries from any peer.
 Returns `(source_rank, query_bytes)` if a message is waiting, `nothing` otherwise.
 Call in the peer's main loop to process incoming queries without blocking.
 """
-function mpi_poll_traverse!() :: Union{Nothing, Tuple{Int32, Vector{UInt8}}}
+function mpi_poll_traverse!()::Union{Nothing, Tuple{Int32, Vector{UInt8}}}
     _MPI_INITIALIZED[] || return nothing
     ismsg, status = MPI.Iprobe(MPI.ANY_SOURCE, Int(TRAVERSE_TAG), _MPI_COMM[], MPI.Status)
     ismsg || return nothing
     src   = Int32(MPI.Get_source(status))
     count = MPI.Get_count(status, UInt8)
     buf   = Vector{UInt8}(undef, count)
-    MPI.Recv!(buf, _MPI_COMM[]; source=Int(src), tag=Int(TRAVERSE_TAG))
+    MPI.Recv!(buf, _MPI_COMM[]; source = Int(src), tag = Int(TRAVERSE_TAG))
     (src, buf)
 end
 
@@ -129,12 +129,12 @@ end
 Send a traverse query to ALL other peers (non-blocking).
 Used when traversal probability is high enough to warrant full broadcast.
 """
-function mpi_broadcast_traverse!(query_bytes::Vector{UInt8}) :: Nothing
+function mpi_broadcast_traverse!(query_bytes::Vector{UInt8})::Nothing
     _MPI_INITIALIZED[] || return nothing
     my_rank = mpi_rank()
-    for r in Int32(0):mpi_nranks()-Int32(1)
+    for r in Int32(0):(mpi_nranks() - Int32(1))
         r == my_rank && continue
-        MPI.Isend(query_bytes, _MPI_COMM[]; dest=Int(r), tag=Int(TRAVERSE_TAG))
+        MPI.Isend(query_bytes, _MPI_COMM[]; dest = Int(r), tag = Int(TRAVERSE_TAG))
     end
     nothing
 end
@@ -148,7 +148,7 @@ Global synchronization barrier across all peers.
 Use ONLY for initialization/shutdown — NOT in the hot traversal loop.
 The fruit-fly model is asynchronous; barriers are anti-patterns in the main loop.
 """
-function mpi_barrier!() :: Nothing
+function mpi_barrier!()::Nothing
     _MPI_INITIALIZED[] || return nothing
     MPI.Barrier(_MPI_COMM[])
     nothing
@@ -163,7 +163,7 @@ Sum an integer across all peers. Returns the global sum on every rank.
 Used by sharded_val_count to total atoms across all shards.
 Falls back to local_val when MPI not active (single-node).
 """
-function mpi_allreduce_sum(local_val::Int64) :: Int64
+function mpi_allreduce_sum(local_val::Int64)::Int64
     mpi_active() || return local_val
     buf = Ref(local_val)
     MPI.Allreduce!(buf, MPI.SUM, _MPI_COMM[])
@@ -177,13 +177,14 @@ Gather variable-length strings from all peers onto every rank.
 Used by sharded_query to collect atom results from all shards.
 
 Protocol (length-prefixed — safe for atoms containing any bytes):
-  1. Serialise: 4-byte count + (4-byte len + utf8 bytes) per string.
-  2. Allgather byte counts, Allgatherv payloads.
-  3. Deserialise length-prefixed records.
+
+ 1. Serialise: 4-byte count + (4-byte len + utf8 bytes) per string.
+ 2. Allgather byte counts, Allgatherv payloads.
+ 3. Deserialise length-prefixed records.
 
 Falls back to local_strs when MPI not active.
 """
-function mpi_allgatherv_strings(local_strs::Vector{String}) :: Vector{String}
+function mpi_allgatherv_strings(local_strs::Vector{String})::Vector{String}
     mpi_active() || return local_strs
 
     # Serialise: length-prefixed records (safe for any atom content)
@@ -204,7 +205,7 @@ function mpi_allgatherv_strings(local_strs::Vector{String}) :: Vector{String}
     total_bytes = Int(sum(all_lens))
     recv_buf    = Vector{UInt8}(undef, total_bytes)
     counts      = Vector{Int32}(all_lens)
-    displs      = Int32[0; cumsum(counts)[1:end-1]]
+    displs      = Int32[0; cumsum(counts)[1:(end - 1)]]
     MPI.Allgatherv!(local_bytes, MPI.VBuffer(recv_buf, counts, displs), _MPI_COMM[])
 
     # Deserialise length-prefixed records from all ranks
@@ -226,15 +227,15 @@ end
 Broadcast a byte buffer from `root` rank to all peers.
 Used by sharded_query to broadcast the query pattern from the initiating rank.
 """
-function mpi_bcast_bytes!(buf::Vector{UInt8}, root::Int32=LOCAL_PEER) :: Vector{UInt8}
+function mpi_bcast_bytes!(buf::Vector{UInt8}, root::Int32 = LOCAL_PEER)::Vector{UInt8}
     mpi_active() || return buf
     # First broadcast the length so non-root ranks can allocate
     len_buf = Ref(Int32(length(buf)))
-    MPI.Bcast!(len_buf, _MPI_COMM[]; root=Int(root))
+    MPI.Bcast!(len_buf, _MPI_COMM[]; root = Int(root))
     if mpi_rank() != root
         resize!(buf, len_buf[])
     end
-    MPI.Bcast!(buf, _MPI_COMM[]; root=Int(root))
+    MPI.Bcast!(buf, _MPI_COMM[]; root = Int(root))
     buf
 end
 
